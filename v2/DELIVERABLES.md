@@ -97,7 +97,7 @@ This is the contract between the server and every bot, so it comes first and eve
 
 **Done when:** a bot written as just one `get_action` method can play a full match.
 
-### D5. Sample bots (`v2/bots/`)
+### D5. Sample bots (`v2/bots/`): beginner starter kit built: `my_bot.py` plus the `pokerbot/` helper package
 - `random_bot`: picks a random legal action
 - `call_bot`: always checks or calls
 - `rule_bot`: a port of the v1 rule-based bot in [examples/sample_bot.py](../examples/sample_bot.py)
