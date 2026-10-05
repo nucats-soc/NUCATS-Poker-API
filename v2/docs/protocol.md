@@ -76,7 +76,7 @@ Rules for both sides:
 1. **Connect** to the server's host and port.
 2. **Send `hello`** within **10 seconds**, or the server closes the connection.
 3. **Receive `welcome`.** You're now in the lobby.
-4. **Wait for a match.** The server starts a match when the table is full (6 bots), or when at least 2 bots have been waiting for the lobby wait time set by the organiser. If more bots are waiting than there are seats, the ones that arrived first get seated.
+4. **Wait for a match.** Depending on how the organiser runs the server, a match starts either when the organiser presses Start, or automatically: when the table is full (6 bots), or when at least 2 bots have waited for the lobby wait time. Either way, your bot just waits for `match_start`. If more bots are waiting than there are seats, the ones that arrived first get seated.
 5. **Play the match** (§5).
 6. **After `match_end`**, by default the server closes every connection and shuts down, so your bot should exit when the socket closes. If the organiser has set the server to run more matches, connected bots go back to the lobby instead and may be seated in the next one.
 7. You can **disconnect** at any time by closing the socket.

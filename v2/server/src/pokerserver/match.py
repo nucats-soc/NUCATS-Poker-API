@@ -3,11 +3,12 @@ Runs one match: seats the players, plays up to hands_per_match hands, and
 returns the standings. Talks to players only through the Player protocol, so
 it can be driven by real TCP connections or by in-process fakes in tests.
 """
+import asyncio
 import json
 import logging
 import os
 import random
-from typing import Protocol
+from typing import Callable, Protocol
 
 from .config import Config
 from .engine import ACTIONS, Hand, IllegalAction, new_deck
@@ -59,7 +60,10 @@ class MatchLog:
 
 class Match:
     def __init__(self, match_id: str, players: list[Player], config: Config,
-                 seed: int | None = None, log_dir: str | None = None):
+                 seed: int | None = None, log_dir: str | None = None,
+                 on_event: Callable[[dict], None] | None = None):
+        """on_event, if given, receives every logged record (all hole cards
+        included, deck order excluded) plus 'to_act' records, for spectators."""
         if not 2 <= len(players) <= config.max_players:
             raise ValueError(f"a match needs 2-{config.max_players} players")
         self.match_id = match_id
@@ -67,6 +71,7 @@ class Match:
         self.seed = seed if seed is not None else random.randrange(2**63)
         self.rng = random.Random(self.seed)
         self.log = MatchLog(log_dir, match_id)
+        self.on_event = on_event
 
         numbers = self.rng.sample(range(config.max_players), len(players))
         self.seats = sorted(
@@ -85,11 +90,22 @@ class Match:
             info["connected"] = False
         return info
 
+    def _record(self, record: dict) -> None:
+        """Write to the hand history and tell any spectators."""
+        self.log.write(record)
+        if self.on_event:
+            self.on_event({k: v for k, v in record.items() if k != "deck"})
+
     async def _broadcast(self, message: dict) -> None:
         message = {"type": message["type"], "match_id": self.match_id, **message}
-        self.log.write(message)
+        self._record(message)
         for seat in self.seats:
             await seat.player.send(message)
+        # Optional pause so people watching can follow along.
+        if self.config.action_delay_ms and message["type"] in (
+                "player_action", "street", "hand_end"):
+            pause = self.config.action_delay_ms / 1000
+            await asyncio.sleep(pause * 3 if message["type"] == "hand_end" else pause)
 
     async def _send_events(self, hand: Hand, hand_number: int) -> None:
         for event in hand.drain_events():
@@ -99,8 +115,8 @@ class Match:
     # ------------------------------------------------------------------- flow
 
     async def run(self) -> list[dict]:
-        self.log.write({"type": "match_info", "match_id": self.match_id,
-                        "seed": self.seed, "config": self.config.public()})
+        self._record({"type": "match_info", "match_id": self.match_id,
+                      "seed": self.seed, "config": self.config.public()})
         try:
             await self._broadcast_match_start()
             for hand_number in range(1, self.config.hands_per_match + 1):
@@ -118,8 +134,8 @@ class Match:
 
     async def _broadcast_match_start(self) -> None:
         seats = [self._seat_info(s) for s in self.seats]
-        self.log.write({"type": "match_start", "match_id": self.match_id,
-                        "seats": seats})
+        self._record({"type": "match_start", "match_id": self.match_id,
+                      "seats": seats})
         for seat in self.seats:
             await seat.player.send({
                 "type": "match_start", "match_id": self.match_id,
@@ -154,9 +170,9 @@ class Match:
         base = {"type": "hand_start", "match_id": self.match_id,
                 "hand_number": hand_number, "button": self.button,
                 "small_blind": sb, "big_blind": bb, "seats": seats}
-        self.log.write({**base, "deck": deck,
-                        "hole_cards": {s.number: hand.hole_cards(s.number)
-                                       for s in order}})
+        self._record({**base, "deck": deck,
+                      "hole_cards": {s.number: hand.hole_cards(s.number)
+                                     for s in order}})
         for s in self.seats:
             await s.player.send({**base, "hole_cards": hand.hole_cards(s.number)})
         await self._send_events(hand, hand_number)
@@ -199,6 +215,11 @@ class Match:
             "button": hand.button, "your_seat": seat.number, "seats": seats,
             "legal_actions": hand.legal_actions(),
         }
+        if self.on_event:
+            self.on_event({"type": "to_act", "match_id": self.match_id,
+                           "hand_number": hand_number, "seat": seat.number,
+                           "timeout_ms": self.config.action_timeout_ms,
+                           "legal_actions": request["legal_actions"]})
         reply = await player.request_action(
             request, self.config.action_timeout_ms / 1000)
 

@@ -18,6 +18,9 @@ class Config:
     # Once min_players are waiting, start after this long even if the table
     # isn't full. A full table always starts straight away.
     lobby_wait_s: float = 30.0
+    # Pause after each action, street and hand (x3) so humans can watch.
+    # Doesn't count against bots' action timeouts. 0 = full speed.
+    action_delay_ms: int = 0
     # Stop after this many matches and disconnect everyone; 0 means keep running.
     max_matches: int = 1
 
@@ -43,6 +46,8 @@ class Config:
             raise ValueError("need 0 < small_blind <= big_blind")
         if self.starting_stack <= 0 or self.hands_per_match <= 0:
             raise ValueError("starting_stack and hands_per_match must be positive")
+        if self.action_delay_ms < 0:
+            raise ValueError("action_delay_ms can't be negative")
         if self.action_timeout_ms <= 0:
             raise ValueError("action_timeout_ms must be positive")
 

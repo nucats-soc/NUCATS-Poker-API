@@ -117,7 +117,7 @@ This is the contract between the server and every bot, so it comes first and eve
 - Protocol checks: malformed messages, illegal actions, slow bots, sudden disconnects
 - Long runs where many random bots play thousands of hands with no crashes and the chip total never changes
 
-### D9. Spectator/admin view (optional, later)
+### D9. Spectator/admin view (spectator part built: `--web-port`; admin controls not yet)
 - Live table view and leaderboard
 - Admin controls to start, pause and remove bots
 

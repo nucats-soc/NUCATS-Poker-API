@@ -12,6 +12,7 @@ import re
 from . import PROTOCOL_VERSION
 from .config import Config
 from .match import Match
+from .web import Spectators
 
 logger = logging.getLogger(__name__)
 
@@ -148,9 +149,17 @@ class Connection:
 
 
 class Server:
-    def __init__(self, config: Config, port: int):
+    def __init__(self, config: Config, port: int,
+                 spectators: Spectators | None = None,
+                 manual_start: bool = False):
+        """manual_start: matches begin only when request_start() is called
+        (the spectator page's Start button), never automatically."""
         self.config = config
         self._port = port
+        self.spectators = spectators
+        self.manual_start = manual_start
+        self.match_running = False
+        self._start_requested = False
         self.lobby: list[Connection] = []
         self._lobby_changed = asyncio.Event()
         self._player_ids = itertools.count(1)
@@ -167,6 +176,7 @@ class Server:
         self._server = await asyncio.start_server(
             self._on_connect, self.config.host, self._port, limit=MAX_LINE)
         logger.info("Listening on %s:%s", self.config.host, self.port)
+        self._lobby_updated()      # tell any spectator page the server's mode
 
     async def stop(self) -> None:
         if self._server:
@@ -187,6 +197,8 @@ class Server:
                 logger.info("Disconnecting %d bot(s) and shutting down",
                             len(self._connections))
             await self.stop()
+            if self.spectators:
+                await self.spectators.stop()
 
     # ------------------------------------------------------------ connections
 
@@ -197,7 +209,7 @@ class Server:
         try:
             await self._handshake(conn)
             self.lobby.append(conn)
-            self._lobby_changed.set()
+            self._lobby_updated()
             logger.info("%r joined the lobby (%d waiting)", conn, len(self.lobby))
             while True:
                 message = await conn.read_message()
@@ -213,7 +225,7 @@ class Server:
             self._connections.discard(conn)
             if conn in self.lobby:
                 self.lobby.remove(conn)
-                self._lobby_changed.set()
+                self._lobby_updated()
             logger.info("%r disconnected", conn)
 
     async def _handshake(self, conn: Connection) -> None:
@@ -248,10 +260,17 @@ class Server:
             seed = (None if self.config.seed is None
                     else self.config.seed + played)
             match = Match(match_id, players, self.config, seed=seed,
-                          log_dir=self.config.log_dir)
+                          log_dir=self.config.log_dir,
+                          on_event=self.spectators.publish
+                          if self.spectators else None)
             logger.info("Starting %s with %s (seed %s)", match_id,
                         ", ".join(repr(p) for p in players), match.seed)
-            standings = await match.run()
+            self.match_running = True
+            self._lobby_updated()
+            try:
+                standings = await match.run()
+            finally:
+                self.match_running = False
             self.results.append(standings)
             played += 1
             print("\n" + format_leaderboard(match_id, match.hands_played,
@@ -259,8 +278,23 @@ class Server:
             # Survivors go back to the front of the queue, in seat order.
             survivors = [p for p in players if p.connected]
             self.lobby[:0] = survivors
-            if survivors:
-                self._lobby_changed.set()
+            self._lobby_updated()
+
+    def request_start(self) -> tuple[bool, str]:
+        """Start a match now with whoever is waiting (manual-start mode)."""
+        if not self.manual_start:
+            return False, "this server starts matches automatically"
+        if self.match_running:
+            return False, "a match is already running"
+        waiting = [c for c in self.lobby if c.connected]
+        if len(waiting) < self.config.min_players:
+            return False, (f"need at least {self.config.min_players} bots, "
+                           f"{len(waiting)} waiting")
+        self._start_requested = True
+        self._lobby_changed.set()
+        seated = min(len(waiting), self.config.max_players)
+        logger.info("Start requested: starting a match with %d bot(s)", seated)
+        return True, f"starting a match with {seated} bots"
 
     async def _wait_for_players(self) -> list[Connection]:
         """Block until a match can start, then take players off the lobby."""
@@ -269,16 +303,24 @@ class Server:
         ready_since: float | None = None
         while True:
             waiting = [c for c in self.lobby if c.connected]
-            now = loop.time()
-            if len(waiting) >= cfg.max_players:
+            timeout = None
+            if self.manual_start:
+                # Only the Start button begins a match. A request made when
+                # too few bots are left (someone dropped) is cancelled.
+                if self._start_requested and len(waiting) >= cfg.min_players:
+                    self._start_requested = False
+                    break
+                self._start_requested = False
+            elif len(waiting) >= cfg.max_players:
                 break
-            if len(waiting) >= cfg.min_players:
+            elif len(waiting) >= cfg.min_players:
+                now = loop.time()
                 ready_since = ready_since if ready_since is not None else now
                 if now - ready_since >= cfg.lobby_wait_s:
                     break
                 timeout = cfg.lobby_wait_s - (now - ready_since)
             else:
-                ready_since, timeout = None, None
+                ready_since = None
             self._lobby_changed.clear()
             try:
                 await asyncio.wait_for(self._lobby_changed.wait(), timeout)
@@ -287,4 +329,18 @@ class Server:
         players = waiting[:cfg.max_players]
         for p in players:
             self.lobby.remove(p)
+        self._lobby_updated()
         return players
+
+    def _lobby_updated(self) -> None:
+        self._lobby_changed.set()
+        if self.spectators:
+            self.spectators.publish({
+                "type": "lobby",
+                "players": [{"player_id": c.player_id, "name": c.name}
+                            for c in self.lobby],
+                "manual_start": self.manual_start,
+                "match_running": self.match_running,
+                "min_players": self.config.min_players,
+                "max_players": self.config.max_players,
+            })
