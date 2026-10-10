@@ -1,5 +1,5 @@
 """
-Helper code for NUCATS poker bots. You shouldn't need to change anything in
+Helper code for NUCATS Pokerbots bots. You shouldn't need to change anything in
 here: write your bot in my_bot.py.
 """
 from .actions import all_in, call, check, fold, raise_to

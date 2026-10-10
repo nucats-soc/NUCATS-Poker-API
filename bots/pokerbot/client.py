@@ -96,7 +96,7 @@ def play(decide, host: str, port: int, name: str, verbose: bool = True) -> None:
 
 def run(decide, name: str = "MyBot") -> None:
     """Read the command line options and start the bot."""
-    parser = argparse.ArgumentParser(description="Run a NUCATS poker bot")
+    parser = argparse.ArgumentParser(description="Run your NUCATS Pokerbots bot")
     parser.add_argument("--host", default="127.0.0.1",
                         help="server address (default: this computer)")
     parser.add_argument("--port", type=int, required=True, help="server port")

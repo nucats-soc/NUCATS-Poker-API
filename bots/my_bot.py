@@ -5,10 +5,13 @@ This is the only file you need to edit. Change decide() to change how your
 bot plays.
 
 Run it (the organiser will tell you the host and port):
-    python my_bot.py --host 192.168.1.20 --port 8000
+    python3 my_bot.py --host 192.168.1.20 --port 8000
 
-Test it on your own computer against 3 copies of itself:
-    python my_bot.py --port 8000 --count 4 --quiet
+Practise against 3 copies of itself on your own computer (start the server
+first: see "Practising on your own computer" in README.md):
+    python3 my_bot.py --port 8000 --count 4 --quiet
+
+On Windows, type `python` (or `py`) instead of `python3`.
 """
 from pokerbot import all_in, call, check, fold, raise_to, run
 from pokerbot.cards import describe_hand, hand_strength, is_pair, rank

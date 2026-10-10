@@ -1,4 +1,4 @@
-"""Run from v2/bots with:  python -m pytest tests"""
+"""Tests for the pokerbot helpers. Run from bots/ with:  python3 -m pytest tests"""
 import pytest
 
 from pokerbot import GameState, all_in, call, check, fold, raise_to

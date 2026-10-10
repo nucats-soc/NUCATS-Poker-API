@@ -1,6 +1,9 @@
 import argparse
 import asyncio
+import errno
 import logging
+import sys
+import tomllib
 
 from .config import Config
 from .server import Server
@@ -35,11 +38,28 @@ def main() -> None:
         format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     port = args.pop("port")
     web_port, web_host = args.pop("web_port"), args.pop("web_host")
-    config = Config.load(args.pop("config"), **args)
+    config_path = args.pop("config")
+    try:
+        config = Config.load(config_path, **args)
+    except FileNotFoundError:
+        hint = (" Copy the template first: cp config.example.toml config.toml"
+                if config_path == "config.toml" else "")
+        sys.exit(f"Config file not found: {config_path}.{hint}\n"
+                 f"(Or leave out --config: every setting has a default.)")
+    except tomllib.TOMLDecodeError as e:
+        sys.exit(f"Couldn't read {config_path}: {e}")
+    except (ValueError, TypeError) as e:
+        sys.exit(f"Bad setting in {config_path or 'the command line'}: {e}")
+
     try:
         asyncio.run(run(config, port, web_host, web_port))
     except KeyboardInterrupt:
         pass
+    except OSError as e:
+        if e.errno == errno.EADDRINUSE:
+            sys.exit(f"A port is already in use ({e.strerror}). Is another "
+                     f"pokerserver still running? Stop it or pick another port.")
+        raise
 
 
 async def run(config: Config, port: int, web_host: str,

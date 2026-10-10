@@ -4,7 +4,9 @@ Your bot plays No-Limit Texas Hold'em against other bots. **You only need to edi
 
 ## 1. Get set up
 
-You need Python 3.10 or newer. Check with `python3 --version`. There's nothing to install.
+You need Python 3.10 or newer. Check with `python3 --version`. The bot itself needs nothing installed.
+
+> **On Windows**, type `python` (or `py`) wherever this guide says `python3`.
 
 ```
 bots/
@@ -30,15 +32,42 @@ You'll see your bot connect, wait for the match, then play each hand:
 [MyBot]   preflop board [] pot 30 -> call
 ```
 
-### Testing on your own computer
+### Practising on your own computer
 
-If you're running the server yourself, play your bot against copies of itself:
+You can run the same table server the tournament uses. Setting it up takes one minute, from the top of the repo. You need Python 3.12 or newer for this part:
 
 ```bash
+cd server
+python3 -m venv .venv
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
+pip install -e .
+pokerserver --port 8000
+```
+
+Leave that running. In a second terminal, play your bot against copies of itself:
+
+```bash
+cd bots
 python3 my_bot.py --port 8000 --count 4 --quiet
 ```
 
-`--count 4` starts 4 copies, and `--quiet` means only the first one prints.
+`--count 4` starts 4 copies, and `--quiet` means only the first one prints. The match starts about 30 seconds after the second bot joins. Add `--lobby-wait 2` to the `pokerserver` command to start sooner.
+
+To **watch** the game in your browser, start the server with `pokerserver --port 8000 --web-port 8080 --delay-ms 500` instead. Then open http://localhost:8080 and click **Start match**. See [`../server/README.md`](../server/README.md) for every option.
+
+You can also check your `decide()` without a server at all. Build a pretend `state` and call it:
+
+```python
+from pokerbot import GameState
+from my_bot import decide
+
+state = GameState(my_cards=["As", "Ad"], board=[], street="preflop", pot=30,
+                  to_call=20, can_check=False, can_raise=True, min_raise=40,
+                  max_raise=1000, my_stack=980, my_bet=0, my_seat=0,
+                  opponents=[], history=[], hand_number=1, hands_in_match=20,
+                  button=0)
+print(decide(state))      # e.g. {'action': 'raise', 'amount': 120}
+```
 
 ## 3. Make it yours
 
@@ -47,7 +76,7 @@ Open `my_bot.py`. First, change `BOT_NAME` to your team name. Then edit `decide(
 | Return this | What it does |
 |---|---|
 | `fold()` | Give up this hand. |
-| `check()` | Pass without betting. Only works when nobody has bet. |
+| `check()` | Pass without betting. Only works when there's nothing to call (`state.can_check`). |
 | `call()` | Match the current bet. |
 | `raise_to(100)` | Make your **total** bet this round 100 chips. Also how you make the first bet. |
 | `all_in()` | Bet everything you have. |
@@ -120,9 +149,10 @@ The example bot is simple on purpose. Some things to try:
 
 | Problem | Fix |
 |---|---|
+| `command not found: python` | On a Mac or Linux, use `python3`. On Windows, use `python` or `py`. |
 | `Couldn't connect to ...` | Check the server is running and the host and port are right. On a different computer, use the organiser's IP, not `127.0.0.1`. |
 | `Your decide() crashed!` | Read the error underneath. It points to the line in `my_bot.py` that broke. |
 | `Note: ...` | Your move wasn't allowed, so the bot made a safe move instead. The note says why. |
-| Nothing happens after "Waiting for a match" | The organiser hasn't started the match yet. |
+| Nothing happens after "Waiting for a match" | The match hasn't started yet. On the organiser's server, wait for them to start it. On your own server, a match starts about 30 seconds after the second bot joins (or use `--lobby-wait 2`), or when you click **Start match** if you used `--web-port`. |
 
 Want the full technical details? See [`../docs/protocol.md`](../docs/protocol.md).
