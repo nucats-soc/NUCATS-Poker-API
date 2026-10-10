@@ -61,7 +61,9 @@ class Config:
         known = {f.name for f in fields(cls)}
         unknown = set(values) - known
         if unknown:
-            raise ValueError(f"unknown config keys: {', '.join(sorted(unknown))}")
+            hint = " (the port is set with --port, not in the file)" \
+                if "port" in unknown else ""
+            raise ValueError(f"unknown config keys: {', '.join(sorted(unknown))}{hint}")
         config = cls(**values)
         config.validate()
         return config

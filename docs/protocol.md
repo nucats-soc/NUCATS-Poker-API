@@ -70,7 +70,7 @@ Rules for both sides:
    │ │ ◄─────────────────────── hand_end ── │ │
    │ └──────────────────────────────────────┘ │
    │ ◄────────────────────────── match_end ── │
-   │                                          │   back to the lobby for the next match
+   │ ◄──────────────────── connection closed ── │   (unless the server runs more matches: see step 6)
 ```
 
 1. **Connect** to the server's host and port.
@@ -456,4 +456,4 @@ nc localhost <port>
 {"type":"hello","protocol":1,"name":"me"}
 ```
 
-Then type `action` lines when you get an `action_request`. You'll probably need a longer `action_timeout_ms` for this.
+Then type `action` lines when you get an `action_request`. Five seconds isn't long enough to type a move, so if you run the server yourself, give it a longer time limit, e.g. `pokerserver --port 8000 --timeout-ms 60000`.

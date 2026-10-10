@@ -49,7 +49,7 @@ def test_page_and_404(tmp_path):
         server, spectators = await start(tmp_path)
         try:
             status, body = await http_get(spectators.port, "/")
-            assert status.endswith("200 OK") and b"<title>NUCATS Table</title>" in body
+            assert status.endswith("200 OK") and b"<title>NUCATS Pokerbots</title>" in body
             status, _ = await http_get(spectators.port, "/nope")
             assert "404" in status
         finally:

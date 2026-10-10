@@ -1,4 +1,4 @@
-# Copy to config.toml and run: pokerserver --port 9000 --config config.toml
+# Copy to config.toml and run: pokerserver --port 8000 --config config.toml
 # The port is always given on the command line, not in this file.
 # Every key is optional; these are the defaults.
 
